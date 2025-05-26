@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+src/main.py
+src/database/diario_alimentare.py
+src/database/migrate_db.py
+src/diarioalimentare.egg-info/PKG-INFO
+src/diarioalimentare.egg-info/SOURCES.txt
+src/diarioalimentare.egg-info/dependency_links.txt
+src/diarioalimentare.egg-info/requires.txt
+src/diarioalimentare.egg-info/top_level.txt
