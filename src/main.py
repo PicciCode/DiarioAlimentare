@@ -178,8 +178,8 @@ elif pagina == "✏️ Modifica Record":
             
             with col1:
                 nuova_data = st.date_input("Data", value=record['Data'].date())
-                nuovo_pasto = st.selectbox("Pasto", ["colazione", "spuntino mattina", "pranzo", "merenda", "cena", "spuntino sera"], 
-                                         index=["colazione", "spuntino mattina", "pranzo", "merenda", "cena", "spuntino sera"].index(record['Pasto'].lower()) if record['Pasto'].lower() in ["colazione", "spuntino mattina", "pranzo", "merenda", "cena", "spuntino sera"] else 0)
+                nuovo_pasto = st.selectbox("Pasto", ["Colazione", "Spuntino Mattina", "Pranzo", "Merenda", "Cena", "Spuntino Sera"], 
+                                         index=["Colazione", "Spuntino Mattina", "Pranzo", "Merenda", "Cena", "Spuntino Sera"].index(record['Pasto']) if record['Pasto'] in ["Colazione", "Spuntino Mattina", "Pranzo", "Merenda", "Cena", "Spuntino Sera"] else 0)
                 nuovo_alimento = st.text_input("Alimento", value=record['Alimento'])
                 nuova_quantita = st.number_input("Quantità", min_value=0, step=1, value=int(record['Quantità']))
                 nuova_unita = st.selectbox("Unità di Misura", ["g", "ml", "porzione", "cucchiaio", "cucchiaino", "tazza"],
