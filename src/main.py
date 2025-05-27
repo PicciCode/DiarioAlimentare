@@ -60,6 +60,7 @@ def ottieni_dati_come_df():
                 })
                 df = pd.DataFrame(data)
                 df["Data"]=pd.to_datetime(df["Data"]).dt.tz_localize(None)
+                df.sort_values(by="ID",inplace=True)
             return df
         return pd.DataFrame()
     except Exception as e:
