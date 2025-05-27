@@ -19,7 +19,7 @@ st.markdown("---")
 
 # Sidebar per la navigazione
 st.sidebar.title("Navigazione")
-toggle=st.sidebar.toggle("Visualizza Dati",key="visualizza_dati")
+toggle=st.sidebar.toggle("Visualizza Dati",value=True,key="visualizza_dati")
 if not toggle:
     pagina = st.sidebar.selectbox(
         "Seleziona una pagina:",
