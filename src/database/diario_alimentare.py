@@ -1,281 +1,338 @@
-import sqlalchemy
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-import sqlite3
+import supabase
 import os
+from typing import Dict, Optional, Any
+from datetime import datetime
+from dotenv import load_dotenv
 
-Base = declarative_base()
+load_dotenv("/Users/carlo/Desktop/SideQuests/DiarioAlimentare/.env")
 
-def migrate_database_if_needed():
-    """
-    Controlla e aggiunge le colonne mancanti al database esistente
-    """
-    db_path = "diarioalimentare.sqlite"
+supabase_url = os.getenv('SUPABASE_URL')
+supabase_key = os.getenv('SUPABASE_API_KEY')
+
+if not supabase_url or not supabase_key:
+    raise ValueError("SUPABASE_URL e SUPABASE_API_KEY devono essere impostati nelle variabili d'ambiente")
+
+supabase_client = supabase.create_client(supabase_url, supabase_key)
+
+class DiarioAlimentareDB:
+    """Classe per gestire le operazioni CRUD sulla tabella DiarioAlimentare"""
     
-    if not os.path.exists(db_path):
-        return  # Il database verrà creato automaticamente
+    TABLE_NAME = "DiarioAlimentare"
     
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
+    @staticmethod
+    def create_entry(
+        data: datetime,
+        pasto: Optional[str] = None,
+        alimento: Optional[str] = None,
+        quantita: Optional[int] = None,
+        unita_misura: Optional[str] = None,
+        carboidrati: Optional[float] = None,
+        glicemia_iniziale: Optional[int] = None,
+        glicemia_dop_2h: Optional[int] = None,
+        unita_insulina: Optional[float] = None,
+        note: Optional[str] = None,
+        dosi_correttive: Optional[float] = None,
+        tempo_dosi_correttive: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Crea una nuova voce nel diario alimentare
         
-        # Controlla le colonne esistenti
-        cursor.execute("PRAGMA table_info(diario_alimentare)")
-        columns = [column[1] for column in cursor.fetchall()]
+        Args:
+            data: Data e ora del pasto (obbligatorio)
+            pasto: Tipo di pasto (colazione, pranzo, cena, spuntino)
+            alimento: Nome dell'alimento
+            quantita: Quantità dell'alimento
+            unita_misura: Unità di misura (g, ml, porzioni, etc.)
+            carboidrati: Grammi di carboidrati
+            glicemia_iniziale: Valore glicemia prima del pasto
+            glicemia_dop_2h: Valore glicemia dopo 2 ore
+            unita_insulina: Unità di insulina somministrate
+            note: Note aggiuntive
+            dosi_correttive: Dosi correttive di insulina
+            tempo_dosi_correttive: Tempo delle dosi correttive in minuti
+            
+        Returns:
+            Dict con i dati della voce creata o errore
+        """
+        try:
+            entry_data = {
+                "data": data.isoformat(),
+                "pasto": pasto,
+                "alimento": alimento,
+                "quantita": quantita,
+                "unita_misura": unita_misura,
+                "carboidrati": carboidrati,
+                "glicemia_iniziale": glicemia_iniziale,
+                "glicemia_dop_2h": glicemia_dop_2h,
+                "unita_insulina": unita_insulina,
+                "note": note,
+                "dosi_correttive": dosi_correttive,
+                "tempo_dosi_correttive": tempo_dosi_correttive
+            }
+            
+            # Rimuovi i campi None per non inserire valori null non necessari
+            entry_data = {k: v for k, v in entry_data.items() if v is not None}
+            
+            response = supabase_client.table(DiarioAlimentareDB.TABLE_NAME).insert(entry_data).execute()
+            
+            if response.data:
+                return {"success": True, "data": response.data[0]}
+            else:
+                return {"success": False, "error": "Errore durante l'inserimento"}
+                
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    @staticmethod
+    def get_entry_by_id(entry_id: int) -> Dict[str, Any]:
+        """
+        Recupera una voce specifica per ID
         
-        # Aggiungi colonne mancanti
-        if 'note' not in columns:
-            cursor.execute("ALTER TABLE diario_alimentare ADD COLUMN note TEXT")
+        Args:
+            entry_id: ID della voce da recuperare
             
-        if 'dosi_correttive' not in columns:
-            cursor.execute("ALTER TABLE diario_alimentare ADD COLUMN dosi_correttive REAL")
-            
-        if 'tempo_dose_correttiva' not in columns:
-            cursor.execute("ALTER TABLE diario_alimentare ADD COLUMN tempo_dose_correttiva INTEGER")
-            
-        conn.commit()
-        conn.close()
-    except Exception:
-        pass  # Ignora errori, SQLAlchemy gestirà la creazione
-
-## create a local sqlite database
-def create_database():
-    engine = sqlalchemy.create_engine("sqlite:///diarioalimentare.sqlite")
-    migrate_database_if_needed()
-    Base.metadata.create_all(engine)
-    return engine
-
-def get_engine():
-    engine = sqlalchemy.create_engine("sqlite:///diarioalimentare.sqlite")
-    # Assicurati che le tabelle esistano e siano aggiornate
-    migrate_database_if_needed()
-    Base.metadata.create_all(engine)
-    return engine
-
-def get_session():
-    engine = get_engine()
-    Session = sessionmaker(bind=engine)
-    return Session()
-
-## create a table
-class DiarioAlimentare(Base):
-    __tablename__ = "diario_alimentare"
-    id = Column(Integer, primary_key=True)
-    data = Column(DateTime)
-    pasto = Column(String)
-    alimento = Column(String)
-    quantita = Column(Float)
-    unita_misura = Column(String)
-    carboidrati = Column(Float)
-    glicemia_iniziale = Column(Float)
-    glicemia_dopo_2h = Column(Float)
-    unita_insulina = Column(Float)
-    insulina_attiva = Column(Float)
-    note = Column(Text)
-    dosi_correttive = Column(Float)
-    tempo_dose_correttiva = Column(Integer)  # minuti dopo la dose principale
-
-    @classmethod
-    def aggiungi_record(cls, data, pasto, alimento, quantita, unita_misura, 
-                       carboidrati, glicemia_iniziale, glicemia_dopo_2h=None, 
-                       unita_insulina=None, insulina_attiva=None, note=None, 
-                       dosi_correttive=None, tempo_dose_correttiva=None):
-        session = get_session()
+        Returns:
+            Dict con i dati della voce o errore
+        """
         try:
-            nuovo_record = cls(
-                data=data,
-                pasto=pasto,
-                alimento=alimento,
-                quantita=quantita,
-                unita_misura=unita_misura,
-                carboidrati=carboidrati,
-                glicemia_iniziale=glicemia_iniziale,
-                glicemia_dopo_2h=glicemia_dopo_2h,
-                unita_insulina=unita_insulina,
-                insulina_attiva=insulina_attiva,
-                note=note,
-                dosi_correttive=dosi_correttive,
-                tempo_dose_correttiva=tempo_dose_correttiva
-            )
-            session.add(nuovo_record)
-            session.commit()
-            # Refresh per ottenere l'ID generato
-            session.refresh(nuovo_record)
-            # Crea un nuovo oggetto con i dati per evitare problemi di sessione
-            record_data = {
-                'id': nuovo_record.id,
-                'data': nuovo_record.data,
-                'pasto': nuovo_record.pasto,
-                'alimento': nuovo_record.alimento,
-                'quantita': nuovo_record.quantita,
-                'unita_misura': nuovo_record.unita_misura,
-                'carboidrati': nuovo_record.carboidrati,
-                'glicemia_iniziale': nuovo_record.glicemia_iniziale,
-                'glicemia_dopo_2h': nuovo_record.glicemia_dopo_2h,
-                'unita_insulina': nuovo_record.unita_insulina,
-                'insulina_attiva': nuovo_record.insulina_attiva,
-                'note': nuovo_record.note,
-                'dosi_correttive': nuovo_record.dosi_correttive,
-                'tempo_dose_correttiva': nuovo_record.tempo_dose_correttiva
-            }
-            return record_data
+            response = supabase_client.table(DiarioAlimentareDB.TABLE_NAME).select("*").eq("id", entry_id).execute()
+            
+            if response.data:
+                return {"success": True, "data": response.data[0]}
+            else:
+                return {"success": False, "error": "Voce non trovata"}
+                
         except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
-
-    @classmethod
-    def ottieni_tutti_record(cls):
-        session = get_session()
+            return {"success": False, "error": str(e)}
+    
+    @staticmethod
+    def get_all_entries(limit: Optional[int] = None, offset: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Recupera tutte le voci del diario alimentare
+        
+        Args:
+            limit: Numero massimo di voci da recuperare
+            offset: Numero di voci da saltare (per paginazione)
+            
+        Returns:
+            Dict con lista delle voci o errore
+        """
         try:
-            records = session.query(cls).order_by(cls.data.desc()).all()
-            # Converti in dizionari per evitare problemi di sessione
-            result = []
-            for record in records:
-                result.append({
-                    'id': record.id,
-                    'data': record.data,
-                    'pasto': record.pasto,
-                    'alimento': record.alimento,
-                    'quantita': record.quantita,
-                    'unita_misura': record.unita_misura,
-                    'carboidrati': record.carboidrati,
-                    'glicemia_iniziale': record.glicemia_iniziale,
-                    'glicemia_dopo_2h': record.glicemia_dopo_2h,
-                    'unita_insulina': record.unita_insulina,
-                    'insulina_attiva': record.insulina_attiva,
-                    'note': record.note,
-                    'dosi_correttive': record.dosi_correttive,
-                    'tempo_dose_correttiva': record.tempo_dose_correttiva
-                })
-            return result
+            query = supabase_client.table(DiarioAlimentareDB.TABLE_NAME).select("*").order("data", desc=True)
+            
+            if limit:
+                query = query.limit(limit)
+            if offset:
+                query = query.offset(offset)
+                
+            response = query.execute()
+            
+            return {"success": True, "data": response.data, "count": len(response.data)}
+                
         except Exception as e:
-            raise e
-        finally:
-            session.close()
-
-    @classmethod
-    def ottieni_record_per_data(cls, data):
-        session = get_session()
+            return {"success": False, "error": str(e)}
+    
+    @staticmethod
+    def get_entries_by_date_range(
+        start_date: datetime, 
+        end_date: datetime
+    ) -> Dict[str, Any]:
+        """
+        Recupera le voci in un intervallo di date
+        
+        Args:
+            start_date: Data di inizio
+            end_date: Data di fine
+            
+        Returns:
+            Dict con lista delle voci o errore
+        """
         try:
-            records = session.query(cls).filter(cls.data == data).all()
-            # Converti in dizionari per evitare problemi di sessione
-            result = []
-            for record in records:
-                result.append({
-                    'id': record.id,
-                    'data': record.data,
-                    'pasto': record.pasto,
-                    'alimento': record.alimento,
-                    'quantita': record.quantita,
-                    'unita_misura': record.unita_misura,
-                    'carboidrati': record.carboidrati,
-                    'glicemia_iniziale': record.glicemia_iniziale,
-                    'glicemia_dopo_2h': record.glicemia_dopo_2h,
-                    'unita_insulina': record.unita_insulina,
-                    'insulina_attiva': record.insulina_attiva,
-                    'note': record.note,
-                    'dosi_correttive': record.dosi_correttive,
-                    'tempo_dose_correttiva': record.tempo_dose_correttiva
-                })
-            return result
+            response = (supabase_client.table(DiarioAlimentareDB.TABLE_NAME)
+                       .select("*")
+                       .gte("data", start_date.isoformat())
+                       .lte("data", end_date.isoformat())
+                       .order("data", desc=True)
+                       .execute())
+            
+            return {"success": True, "data": response.data, "count": len(response.data)}
+                
         except Exception as e:
-            raise e
-        finally:
-            session.close()
-
-    @classmethod
-    def aggiorna_record(cls, id, **kwargs):
-        session = get_session()
+            return {"success": False, "error": str(e)}
+    
+    @staticmethod
+    def get_entries_by_meal_type(pasto: str) -> Dict[str, Any]:
+        """
+        Recupera le voci per tipo di pasto
+        
+        Args:
+            pasto: Tipo di pasto da filtrare
+            
+        Returns:
+            Dict con lista delle voci o errore
+        """
         try:
-            record = session.query(cls).filter(cls.id == int(id)).first()
-            if not record:
-                return None
+            response = (supabase_client.table(DiarioAlimentareDB.TABLE_NAME)
+                       .select("*")
+                       .eq("pasto", pasto)
+                       .order("data", desc=True)
+                       .execute())
             
-            # Lista dei campi aggiornabili (esclude id che è primary key)
-            campi_aggiornabili = {
-                'data', 'pasto', 'alimento', 'quantita', 'unita_misura', 
-                'carboidrati', 'glicemia_iniziale', 'glicemia_dopo_2h', 
-                'unita_insulina', 'insulina_attiva', 'note', 'dosi_correttive',
-                'tempo_dose_correttiva'
-            }
-            
-            # Valida che i campi siano aggiornabili
-            for key in kwargs.keys():
-                if key not in campi_aggiornabili:
-                    raise ValueError(f"Campo '{key}' non è aggiornabile")
-            
-            # Aggiorna solo i campi validi
-            for key, value in kwargs.items():
-                if hasattr(record, key):
-                    setattr(record, key, value)
-            
-            session.commit()
-            session.refresh(record)
-            
-            # Restituisci i dati aggiornati
-            updated_data = {
-                'id': record.id,
-                'data': record.data,
-                'pasto': record.pasto,
-                'alimento': record.alimento,
-                'quantita': record.quantita,
-                'unita_misura': record.unita_misura,
-                'carboidrati': record.carboidrati,
-                'glicemia_iniziale': record.glicemia_iniziale,
-                'glicemia_dopo_2h': record.glicemia_dopo_2h,
-                'unita_insulina': record.unita_insulina,
-                'insulina_attiva': record.insulina_attiva,
-                'note': record.note,
-                'dosi_correttive': record.dosi_correttive,
-                'tempo_dose_correttiva': record.tempo_dose_correttiva
-            }
-            return updated_data
-            
-        except ValueError as e:
-            session.rollback()
-            raise e
+            return {"success": True, "data": response.data, "count": len(response.data)}
+                
         except Exception as e:
-            session.rollback()
-            raise RuntimeError(f"Errore durante l'aggiornamento del record: {str(e)}")
-        finally:
-            session.close()
-
-    @classmethod
-    def elimina_record(cls, id):
-        session = get_session()
-        id=int(id)
+            return {"success": False, "error": str(e)}
+    
+    @staticmethod
+    def update_entry(entry_id: int, **kwargs) -> Dict[str, Any]:
+        """
+        Aggiorna una voce esistente
+        
+        Args:
+            entry_id: ID della voce da aggiornare
+            **kwargs: Campi da aggiornare
+            
+        Returns:
+            Dict con i dati aggiornati o errore
+        """
         try:
-            record = session.query(cls).filter(cls.id == id).first()
-            if record:
-                # Salva i dati prima di eliminare
-                deleted_data = {
-                    'id': record.id,
-                    'data': record.data,
-                    'pasto': record.pasto,
-                    'alimento': record.alimento,
-                    'quantita': record.quantita,
-                    'unita_misura': record.unita_misura,
-                    'carboidrati': record.carboidrati,
-                    'glicemia_iniziale': record.glicemia_iniziale,
-                    'glicemia_dopo_2h': record.glicemia_dopo_2h,
-                    'unita_insulina': record.unita_insulina,
-                    'insulina_attiva': record.insulina_attiva,
-                    'note': record.note,
-                    'dosi_correttive': record.dosi_correttive,
-                    'tempo_dose_correttiva': record.tempo_dose_correttiva
+            # Rimuovi i campi None
+            update_data = {k: v for k, v in kwargs.items() if v is not None}
+            
+            if not update_data:
+                return {"success": False, "error": "Nessun campo da aggiornare"}
+            
+            # Converti datetime in ISO string se presente
+            if "data" in update_data and isinstance(update_data["data"], datetime):
+                update_data["data"] = update_data["data"].isoformat()
+            
+            response = (supabase_client.table(DiarioAlimentareDB.TABLE_NAME)
+                       .update(update_data)
+                       .eq("id", entry_id)
+                       .execute())
+            
+            if response.data:
+                return {"success": True, "data": response.data[0]}
+            else:
+                return {"success": False, "error": "Voce non trovata o non aggiornata"}
+                
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    @staticmethod
+    def delete_entry(entry_id: int) -> Dict[str, Any]:
+        """
+        Elimina una voce dal diario alimentare
+        
+        Args:
+            entry_id: ID della voce da eliminare
+            
+        Returns:
+            Dict con risultato dell'operazione
+        """
+        try:
+            response = (supabase_client.table(DiarioAlimentareDB.TABLE_NAME)
+                       .delete()
+                       .eq("id", entry_id)
+                       .execute())
+            
+            if response.data:
+                return {"success": True, "message": "Voce eliminata con successo"}
+            else:
+                return {"success": False, "error": "Voce non trovata"}
+                
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    @staticmethod
+    def search_entries(search_term: str, field: str = "alimento") -> Dict[str, Any]:
+        """
+        Cerca voci per termine di ricerca
+        
+        Args:
+            search_term: Termine da cercare
+            field: Campo in cui cercare (default: alimento)
+            
+        Returns:
+            Dict con lista delle voci trovate o errore
+        """
+        try:
+            response = (supabase_client.table(DiarioAlimentareDB.TABLE_NAME)
+                       .select("*")
+                       .ilike(field, f"%{search_term}%")
+                       .order("data", desc=True)
+                       .execute())
+            
+            return {"success": True, "data": response.data, "count": len(response.data)}
+                
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    @staticmethod
+    def get_statistics() -> Dict[str, Any]:
+        """
+        Recupera statistiche generali del diario alimentare
+        
+        Returns:
+            Dict con statistiche o errore
+        """
+        try:
+            # Conta totale voci
+            total_response = supabase_client.table(DiarioAlimentareDB.TABLE_NAME).select("id", count="exact").execute()
+            total_entries = total_response.count
+            
+            # Conta voci per tipo di pasto
+            meals_response = (supabase_client.table(DiarioAlimentareDB.TABLE_NAME)
+                             .select("pasto", count="exact")
+                             .execute())
+            
+            # Calcola media carboidrati
+            carbs_response = (supabase_client.table(DiarioAlimentareDB.TABLE_NAME)
+                             .select("carboidrati")
+                             .not_.is_("carboidrati", "null")
+                             .execute())
+            
+            avg_carbs = 0
+            if carbs_response.data:
+                carbs_values = [entry["carboidrati"] for entry in carbs_response.data if entry["carboidrati"]]
+                avg_carbs = sum(carbs_values) / len(carbs_values) if carbs_values else 0
+            
+            return {
+                "success": True,
+                "data": {
+                    "total_entries": total_entries,
+                    "average_carbs": round(avg_carbs, 2),
+                    "entries_with_carbs": len(carbs_response.data) if carbs_response.data else 0
                 }
-                session.delete(record)
-                session.commit()
-                return deleted_data
-            return None
+            }
+                
         except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+            return {"success": False, "error": str(e)}
 
-    def __repr__(self):
-        return f"<DiarioAlimentare(id={self.id}, data={self.data}, alimento={self.alimento})>"
+
+# Funzioni di convenienza per uso diretto
+def crea_voce_diario(**kwargs):
+    """Funzione di convenienza per creare una voce"""
+    return DiarioAlimentareDB.create_entry(**kwargs)
+
+def ottieni_voce(entry_id: int):
+    """Funzione di convenienza per ottenere una voce"""
+    return DiarioAlimentareDB.get_entry_by_id(entry_id)
+
+def ottieni_tutte_voci(limit=None, offset=None):
+    """Funzione di convenienza per ottenere tutte le voci"""
+    return DiarioAlimentareDB.get_all_entries(limit, offset)
+
+def aggiorna_voce(entry_id: int, **kwargs):
+    """Funzione di convenienza per aggiornare una voce"""
+    return DiarioAlimentareDB.update_entry(entry_id, **kwargs)
+
+def elimina_voce(entry_id: int):
+    """Funzione di convenienza per eliminare una voce"""
+    return DiarioAlimentareDB.delete_entry(entry_id)
+
+def cerca_voci(search_term: str, field="alimento"):
+    """Funzione di convenienza per cercare voci"""
+    return DiarioAlimentareDB.search_entries(search_term, field)
+
+

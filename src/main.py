@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, date
 import plotly.express as px
-from database.diario_alimentare import DiarioAlimentare
+from database.diario_alimentare import DiarioAlimentareDB
 import io
 
 # Configurazione della pagina
@@ -25,37 +25,42 @@ pagina = st.sidebar.selectbox(
 )
 
 # Funzione per convertire DataFrame in Excel
-
 def converti_in_excel(df):
     output = io.BytesIO()
+    df["Data"]=pd.to_datetime(df["Data"])
     df.to_excel(output, index=False, sheet_name='Diario_Alimentare')
     return output.getvalue()
 
 # Funzione per ottenere tutti i dati come DataFrame
 def ottieni_dati_come_df():
     try:
-        records = DiarioAlimentare.ottieni_tutti_record()
-        if records:
+        risultato = DiarioAlimentareDB.get_all_entries()
+        if risultato["success"] and risultato["data"]:
             data = []
-            for record in records:
-                # Ora i record sono già dizionari
+            for record in risultato["data"]:
+                # Converti la data da stringa ISO a datetime se necessario
+                data_record = record['data']
+                if isinstance(data_record, str):
+                    data_record = datetime.fromisoformat(data_record.replace('Z', '+00:00'))
+                
                 data.append({
                     'ID': record['id'],
-                    'Data': record['data'],
-                    'Pasto': record['pasto'],
-                    'Alimento': record['alimento'],
-                    'Quantità': record['quantita'],
-                    'Unità di Misura': record['unita_misura'],
-                    'Carboidrati (g)': record['carboidrati'],
-                    'Glicemia Iniziale': record['glicemia_iniziale'],
-                    'Glicemia dopo 2h': record['glicemia_dopo_2h'],
-                    'Unità Insulina': record['unita_insulina'],
-                    'Insulina Attiva': record['insulina_attiva'],
-                    'Dosi Correttive': record['dosi_correttive'],
-                    'Tempo Dose Correttiva (min)': record['tempo_dose_correttiva'],
-                    'Note': record['note']
+                    'Data': data_record,
+                    'Pasto': record.get('pasto', ''),
+                    'Alimento': record.get('alimento', ''),
+                    'Quantità': record.get('quantita', 0),
+                    'Unità di Misura': record.get('unita_misura', ''),
+                    'Carboidrati (g)': record.get('carboidrati', 0),
+                    'Glicemia Iniziale': record.get('glicemia_iniziale', 0),
+                    'Glicemia dopo 2h': record.get('glicemia_dop_2h', None),
+                    'Unità Insulina': record.get('unita_insulina', None),
+                    'Dosi Correttive': record.get('dosi_correttive', None),
+                    'Tempo Dose Correttiva (min)': record.get('tempo_dosi_correttive', None),
+                    'Note': record.get('note', '')
                 })
-            return pd.DataFrame(data)
+                df = pd.DataFrame(data)
+                df["Data"]=pd.to_datetime(df["Data"]).dt.tz_localize(None)
+            return df
         return pd.DataFrame()
     except Exception as e:
         st.error(f"Errore nel recuperare i dati: {e}")
@@ -73,14 +78,13 @@ if pagina == "📝 Aggiungi Record":
         alimento = st.text_input("Alimento")
         quantita = st.number_input("Quantità", min_value=0, step=1)
         unita_misura = st.selectbox("Unità di Misura", ["g", "ml", "porzione", "cucchiaio", "cucchiaino", "tazza"])
-        carboidrati = st.number_input("Carboidrati (g)", min_value=0.0, step=.5)
+        carboidrati = st.number_input("Carboidrati (g)", min_value=0.0, step=0.5)
     
     with col2:
         glicemia_iniziale = st.number_input("Glicemia Iniziale (mg/dl)", min_value=0, step=1)
         glicemia_dopo_2h = st.number_input("Glicemia dopo 2h (mg/dl)", min_value=0, step=1, value=0)
-        unita_insulina = st.number_input("Unità Insulina", min_value=0., step=0.5, value=0.)
-        insulina_attiva = st.number_input("Insulina Attiva", min_value=0., step=0.1, value=0.)
-        dosi_correttive = st.number_input("Dosi Correttive", min_value=0., step=0.5, value=0.)
+        unita_insulina = st.number_input("Unità Insulina", min_value=0.0, step=0.5, value=0.0)
+        dosi_correttive = st.number_input("Dosi Correttive", min_value=0.0, step=0.5, value=0.0)
         tempo_dose_correttiva = st.number_input("Tempo Dose Correttiva (minuti)", min_value=0, step=1, value=0, 
                                                help="Minuti trascorsi tra la dose principale e quella correttiva")
     
@@ -91,7 +95,7 @@ if pagina == "📝 Aggiungi Record":
         if alimento and quantita > 0:
             try:
                 data_datetime = datetime.combine(data_input, datetime.min.time())
-                DiarioAlimentare.aggiungi_record(
+                risultato = DiarioAlimentareDB.create_entry(
                     data=data_datetime,
                     pasto=pasto,
                     alimento=alimento,
@@ -99,15 +103,18 @@ if pagina == "📝 Aggiungi Record":
                     unita_misura=unita_misura,
                     carboidrati=carboidrati,
                     glicemia_iniziale=glicemia_iniziale,
-                    glicemia_dopo_2h=glicemia_dopo_2h if glicemia_dopo_2h > 0 else None,
+                    glicemia_dop_2h=glicemia_dopo_2h if glicemia_dopo_2h > 0 else None,
                     unita_insulina=unita_insulina if unita_insulina > 0 else None,
-                    insulina_attiva=insulina_attiva if insulina_attiva > 0 else None,
                     note=note if note.strip() else None,
                     dosi_correttive=dosi_correttive if dosi_correttive > 0 else None,
-                    tempo_dose_correttiva=tempo_dose_correttiva if tempo_dose_correttiva > 0 else None
+                    tempo_dosi_correttive=tempo_dose_correttiva if tempo_dose_correttiva > 0 else None
                 )
-                st.success("Record aggiunto con successo!")
-                st.rerun()
+                
+                if risultato["success"]:
+                    st.success("Record aggiunto con successo!")
+                    st.rerun()
+                else:
+                    st.error(f"Errore nell'aggiungere il record: {risultato['error']}")
             except Exception as e:
                 st.error(f"Errore nell'aggiungere il record: {e}")
         else:
@@ -120,22 +127,18 @@ elif pagina == "📊 Visualizza Dati":
     df = ottieni_dati_come_df()
     
     if not df.empty:
-        
-        
-        
         # Mostra tabella
         st.subheader("Tabella Dati")
-        st.dataframe(df, use_container_width=True,hide_index=True)
+        st.dataframe(df, use_container_width=True, hide_index=True)
         
         # Pulsante download Excel
-        if not df.empty:
-            excel_data = converti_in_excel(df)
-            st.download_button(
-                label="📥 Scarica come Excel",
-                data=excel_data,
-                file_name=f"diario_alimentare_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+        excel_data = converti_in_excel(df)
+        st.download_button(
+            label="📥 Scarica come Excel",
+            data=excel_data,
+            file_name=f"diario_alimentare_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         
         # Statistiche rapide
         st.subheader("Statistiche Rapide")
@@ -143,12 +146,13 @@ elif pagina == "📊 Visualizza Dati":
         with col1:
             st.metric("Totale Record", len(df))
         with col2:
-            st.metric("Media Glicemia Iniziale", f"{df['Glicemia Iniziale'].mean():.1f} mg/dl")
+            media_glicemia = df['Glicemia Iniziale'].mean()
+            st.metric("Media Glicemia Iniziale", f"{media_glicemia:.1f} mg/dl")
         with col3:
             carboidrati_totali = df['Carboidrati (g)'].sum()
             st.metric("Carboidrati Totali", f"{carboidrati_totali:.1f} g")
         with col4:
-            dosi_correttive_totali = df['Dosi Correttive'].sum()
+            dosi_correttive_totali = df['Dosi Correttive'].fillna(0).sum()
             st.metric("Dosi Correttive Totali", f"{dosi_correttive_totali:.1f} U")
     else:
         st.info("Nessun dato disponibile. Aggiungi alcuni record per iniziare!")
@@ -174,25 +178,24 @@ elif pagina == "✏️ Modifica Record":
             
             with col1:
                 nuova_data = st.date_input("Data", value=record['Data'].date())
-                nuovo_pasto = st.selectbox("Pasto", ["Colazione", "Spuntino Mattina", "Pranzo", "Merenda", "Cena", "Spuntino Sera"], 
-                                         index=["Colazione", "Spuntino Mattina", "Pranzo", "Merenda", "Cena", "Spuntino Sera"].index(record['Pasto']))
+                nuovo_pasto = st.selectbox("Pasto", ["colazione", "spuntino mattina", "pranzo", "merenda", "cena", "spuntino sera"], 
+                                         index=["colazione", "spuntino mattina", "pranzo", "merenda", "cena", "spuntino sera"].index(record['Pasto'].lower()) if record['Pasto'].lower() in ["colazione", "spuntino mattina", "pranzo", "merenda", "cena", "spuntino sera"] else 0)
                 nuovo_alimento = st.text_input("Alimento", value=record['Alimento'])
-                nuova_quantita = st.number_input("Quantità", min_value=0.0, step=0.1, value=float(record['Quantità']))
+                nuova_quantita = st.number_input("Quantità", min_value=0, step=1, value=int(record['Quantità']))
                 nuova_unita = st.selectbox("Unità di Misura", ["g", "ml", "porzione", "cucchiaio", "cucchiaino", "tazza"],
-                                         index=["g", "ml", "porzione", "cucchiaio", "cucchiaino", "tazza"].index(record['Unità di Misura']))
+                                         index=["g", "ml", "porzione", "cucchiaio", "cucchiaino", "tazza"].index(record['Unità di Misura']) if record['Unità di Misura'] in ["g", "ml", "porzione", "cucchiaio", "cucchiaino", "tazza"] else 0)
                 nuovi_carboidrati = st.number_input("Carboidrati (g)", min_value=0.0, step=0.1, value=float(record['Carboidrati (g)']))
             
             with col2:
-                nuova_glicemia_iniziale = st.number_input("Glicemia Iniziale", min_value=0.0, step=1.0, value=float(record['Glicemia Iniziale']))
-                nuova_glicemia_2h = st.number_input("Glicemia dopo 2h", min_value=0.0, step=1.0, 
-                                                   value=float(record['Glicemia dopo 2h']) if pd.notna(record['Glicemia dopo 2h']) else 0.0)
+                nuova_glicemia_iniziale = st.number_input("Glicemia Iniziale", min_value=0, step=1, value=int(record['Glicemia Iniziale']))
+                nuova_glicemia_2h = st.number_input("Glicemia dopo 2h", min_value=0, step=1, 
+                                                   value=int(record['Glicemia dopo 2h']) if pd.notna(record['Glicemia dopo 2h']) else 0)
                 nuova_insulina = st.number_input("Unità Insulina", min_value=0.0, step=0.1,
                                                 value=float(record['Unità Insulina']) if pd.notna(record['Unità Insulina']) else 0.0)
-                nuova_insulina_attiva = st.number_input("Insulina Attiva", min_value=0.0, step=0.1,
-                                                       value=float(record['Insulina Attiva']) if pd.notna(record['Insulina Attiva']) else 0.0)
                 nuove_dosi_correttive = st.number_input("Dosi Correttive", min_value=0.0, step=0.1,
                                                        value=float(record['Dosi Correttive']) if pd.notna(record['Dosi Correttive']) else 0.0)
-                nuovo_tempo_dose_correttiva = st.number_input("Tempo Dose Correttiva (minuti)", min_value=0, step=1, value=int(record['Tempo Dose Correttiva (min)']) if pd.notna(record['Tempo Dose Correttiva (min)']) else 0, 
+                nuovo_tempo_dose_correttiva = st.number_input("Tempo Dose Correttiva (minuti)", min_value=0, step=1, 
+                                                             value=int(record['Tempo Dose Correttiva (min)']) if pd.notna(record['Tempo Dose Correttiva (min)']) else 0, 
                                                              help="Minuti trascorsi tra la dose principale e quella correttiva")
             
             # Campo note a tutta larghezza
@@ -204,7 +207,7 @@ elif pagina == "✏️ Modifica Record":
             if st.button("Aggiorna Record", type="primary"):
                 try:
                     nuova_data_datetime = datetime.combine(nuova_data, datetime.min.time())
-                    DiarioAlimentare.aggiorna_record(
+                    risultato = DiarioAlimentareDB.update_entry(
                         record['ID'],
                         data=nuova_data_datetime,
                         pasto=nuovo_pasto,
@@ -213,15 +216,18 @@ elif pagina == "✏️ Modifica Record":
                         unita_misura=nuova_unita,
                         carboidrati=nuovi_carboidrati,
                         glicemia_iniziale=nuova_glicemia_iniziale,
-                        glicemia_dopo_2h=nuova_glicemia_2h if nuova_glicemia_2h > 0 else None,
+                        glicemia_dop_2h=nuova_glicemia_2h if nuova_glicemia_2h > 0 else None,
                         unita_insulina=nuova_insulina if nuova_insulina > 0 else None,
-                        insulina_attiva=nuova_insulina_attiva if nuova_insulina_attiva > 0 else None,
                         note=nuove_note if nuove_note.strip() else None,
                         dosi_correttive=nuove_dosi_correttive if nuove_dosi_correttive > 0 else None,
-                        tempo_dose_correttiva=nuovo_tempo_dose_correttiva if nuovo_tempo_dose_correttiva > 0 else None
+                        tempo_dosi_correttive=nuovo_tempo_dose_correttiva if nuovo_tempo_dose_correttiva > 0 else None
                     )
-                    st.success("Record aggiornato con successo!")
-                    st.rerun()
+                    
+                    if risultato["success"]:
+                        st.success("Record aggiornato con successo!")
+                        st.rerun()
+                    else:
+                        st.error(f"Errore nell'aggiornare il record: {risultato['error']}")
                 except Exception as e:
                     st.error(f"Errore nell'aggiornare il record: {e}")
     else:
@@ -269,9 +275,12 @@ elif pagina == "🗑️ Elimina Record":
             
             if st.button("🗑️ Elimina Record", type="secondary"):
                 try:
-                    DiarioAlimentare.elimina_record(record['ID'])
-                    st.success("Record eliminato con successo!")
-                    st.rerun()
+                    risultato = DiarioAlimentareDB.delete_entry(record['ID'])
+                    if risultato["success"]:
+                        st.success("Record eliminato con successo!")
+                        st.rerun()
+                    else:
+                        st.error(f"Errore nell'eliminare il record: {risultato['error']}")
                 except Exception as e:
                     st.error(f"Errore nell'eliminare il record: {e}")
     else:
@@ -329,10 +338,13 @@ elif pagina == "📈 Analisi":
         if len(df) > 5:
             st.subheader("Correlazioni")
             numeric_cols = ['Quantità', 'Carboidrati (g)', 'Glicemia Iniziale', 'Glicemia dopo 2h', 'Unità Insulina', 'Dosi Correttive', 'Tempo Dose Correttiva (min)']
-            corr_data = df[numeric_cols].corr()
-            fig_corr = px.imshow(corr_data, text_auto=True, aspect="auto",
-                               title='Matrice di Correlazione')
-            st.plotly_chart(fig_corr, use_container_width=True)
+            # Rimuovi colonne che non esistono o sono tutte NaN
+            existing_cols = [col for col in numeric_cols if col in df.columns and df[col].notna().any()]
+            if len(existing_cols) > 1:
+                corr_data = df[existing_cols].corr()
+                fig_corr = px.imshow(corr_data, text_auto=True, aspect="auto",
+                                   title='Matrice di Correlazione')
+                st.plotly_chart(fig_corr, use_container_width=True)
         
         # Analisi Dosi Correttive
         df_correttive = df[df['Dosi Correttive'].notna() & (df['Dosi Correttive'] > 0)]
@@ -368,9 +380,27 @@ elif pagina == "📈 Analisi":
                     st.metric("Tempo Medio Correzione", "N/A")
             with col3:
                 st.metric("Frequenza Correzioni", f"{len(df_correttive)}/{len(df)} ({len(df_correttive)/len(df)*100:.1f}%)")
+        
+        # Statistiche generali da Supabase
+        st.subheader("Statistiche Generali")
+        try:
+            stats_result = DiarioAlimentareDB.get_statistics()
+            if stats_result["success"]:
+                stats = stats_result["data"]
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Totale Voci", stats["total_entries"])
+                with col2:
+                    st.metric("Media Carboidrati", f"{stats['average_carbs']:.1f} g")
+                with col3:
+                    st.metric("Voci con Carboidrati", stats["entries_with_carbs"])
+        except Exception as e:
+            st.warning(f"Impossibile caricare le statistiche: {e}")
+            
     else:
         st.info("Aggiungi più dati per visualizzare le analisi!")
 
 # Footer
 st.markdown("---")
 st.markdown("💡 **Suggerimento:** Usa il menu laterale per navigare tra le diverse funzionalità dell'app!")
+st.markdown("🔗 **Database:** Connesso a Supabase per il salvataggio sicuro dei dati")

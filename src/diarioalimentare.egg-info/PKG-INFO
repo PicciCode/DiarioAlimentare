@@ -7,27 +7,32 @@ Description-Content-Type: text/markdown
 Requires-Dist: openpyxl>=3.1.5
 Requires-Dist: pandas>=2.2.3
 Requires-Dist: plotly>=6.1.1
+Requires-Dist: psycopg2-binary>=2.9.10
+Requires-Dist: python-dotenv>=1.1.0
 Requires-Dist: sqlalchemy>=2.0.41
 Requires-Dist: streamlit>=1.45.1
+Requires-Dist: supabase>=2.15.2
 Requires-Dist: watchdog>=6.0.0
 Requires-Dist: xlsxwriter>=3.2.3
 
 # 🍽️ Diario Alimentare
 
-Un'applicazione web per tenere traccia dell'alimentazione e della glicemia, sviluppata con Streamlit e SQLAlchemy.
+Un'applicazione web per tenere traccia dell'alimentazione e della glicemia, sviluppata con Streamlit e Supabase.
 
 ## 🚀 Funzionalità
 
 - **📝 Aggiungi Record**: Inserisci nuovi pasti con dettagli su alimenti, quantità, carboidrati e glicemia
-- **📊 Visualizza Dati**: Consulta tutti i record con filtri per data e tipo di pasto
+- **📊 Visualizza Dati**: Consulta tutti i record con filtri e ricerca avanzata
 - **✏️ Modifica Record**: Aggiorna i record esistenti
 - **🗑️ Elimina Record**: Rimuovi record non più necessari
 - **📈 Analisi**: Visualizza grafici e statistiche sui tuoi dati alimentari
 - **📥 Export Excel**: Scarica i tuoi dati in formato Excel
+- **☁️ Cloud Database**: I dati sono salvati su Supabase per accesso da qualsiasi dispositivo
 
 ## 📋 Requisiti
 
 - Python 3.8+
+- Account Supabase (gratuito)
 - Le dipendenze sono elencate in `requirements.txt`
 
 ## 🛠️ Installazione
@@ -43,14 +48,17 @@ cd DiarioAlimentare
 pip install -r requirements.txt
 ```
 
+3. Configura Supabase:
+   - Crea un account su [supabase.com](https://supabase.com)
+   - Crea un nuovo progetto
+   - Copia `env.example` in `.env` e inserisci le tue credenziali:
+   ```bash
+   cp env.example .env
+   ```
+   - Modifica `.env` con i tuoi dati Supabase
+
 ## 🎯 Utilizzo
 
-### Avvio Rapido
-```bash
-python run_app.py
-```
-
-### Avvio Manuale
 ```bash
 cd src
 streamlit run main.py
@@ -60,19 +68,21 @@ L'applicazione si aprirà automaticamente nel browser all'indirizzo `http://loca
 
 ## 📊 Struttura del Database
 
-Il database SQLite (`diarioalimentare.db`) contiene una tabella con i seguenti campi:
+Il database Supabase contiene la tabella `DiarioAlimentare` con i seguenti campi:
 
-- **ID**: Identificativo univoco
-- **Data**: Data e ora del pasto
-- **Pasto**: Tipo di pasto (Colazione, Pranzo, Cena, etc.)
-- **Alimento**: Nome dell'alimento
-- **Quantità**: Quantità consumata
-- **Unità di Misura**: Unità (g, ml, porzione, etc.)
-- **Carboidrati**: Grammi di carboidrati
-- **Glicemia Iniziale**: Valore glicemico prima del pasto
-- **Glicemia dopo 2h**: Valore glicemico dopo 2 ore (opzionale)
-- **Unità Insulina**: Unità di insulina somministrata (opzionale)
-- **Insulina Attiva**: Insulina ancora attiva (opzionale)
+- **id**: Identificativo univoco (auto-incrementale)
+- **data**: Data e ora del pasto (obbligatorio)
+- **pasto**: Tipo di pasto (colazione, pranzo, cena, etc.)
+- **alimento**: Nome dell'alimento
+- **quantità**: Quantità consumata
+- **unita_misura**: Unità (g, ml, porzione, etc.)
+- **carboidrati**: Grammi di carboidrati
+- **glicemia_iniziale**: Valore glicemico prima del pasto
+- **glicemia_dop_2h**: Valore glicemico dopo 2 ore (opzionale)
+- **unita_insulina**: Unità di insulina somministrata (opzionale)
+- **dosi_correttive**: Dosi correttive di insulina (opzionale)
+- **tempo_dosi_correttive**: Tempo delle dosi correttive in minuti (opzionale)
+- **note**: Note personali (opzionale)
 
 ## 📈 Analisi Disponibili
 
@@ -81,6 +91,8 @@ Il database SQLite (`diarioalimentare.db`) contiene una tabella con i seguenti c
 - Media carboidrati per tipo di pasto
 - Alimenti più frequenti
 - Matrice di correlazione tra variabili numeriche
+- Analisi delle dosi correttive
+- Statistiche generali automatiche
 
 ## 🔧 Struttura del Progetto
 
@@ -89,27 +101,54 @@ DiarioAlimentare/
 ├── src/
 │   ├── main.py                 # Applicazione Streamlit principale
 │   └── database/
-│       └── diario_alimentare.py # Modelli database e operazioni CRUD
+│       ├── diario_alimentare.py # Funzioni CRUD per Supabase
+│       ├── esempio_utilizzo.py  # Esempi di utilizzo delle funzioni
+│       └── README.md           # Documentazione delle funzioni CRUD
 ├── requirements.txt            # Dipendenze Python
+├── env.example                # Template variabili d'ambiente
 ├── run_app.py                 # Script di avvio
 └── README.md                  # Questo file
 ```
 
+## ☁️ Vantaggi di Supabase
+
+- **Accesso Multi-dispositivo**: I tuoi dati sono accessibili da qualsiasi dispositivo
+- **Backup Automatici**: Supabase gestisce automaticamente i backup
+- **Scalabilità**: Il database può crescere con le tue esigenze
+- **Sicurezza**: Connessioni crittografate e gestione delle autorizzazioni
+- **Dashboard Web**: Interfaccia per visualizzare e gestire i dati direttamente
+
 ## 💡 Suggerimenti d'Uso
 
-1. **Inserimento Dati**: Compila almeno i campi obbligatori (alimento, quantità, carboidrati, glicemia iniziale)
-2. **Filtri**: Usa i filtri nella sezione "Visualizza Dati" per analizzare periodi specifici
+1. **Inserimento Dati**: Compila almeno i campi obbligatori (data, alimento, quantità)
+2. **Ricerca**: Usa la funzione di ricerca per trovare alimenti specifici
 3. **Export**: Scarica i dati in Excel per analisi esterne o backup
-4. **Analisi**: Consulta regolarmente la sezione "Analisi" per identificare pattern nei tuoi dati
+4. **Analisi**: Consulta regolarmente la sezione "Analisi" per identificare pattern
+5. **Note**: Usa il campo note per registrare sensazioni e reazioni particolari
+
+## 🔧 Funzioni CRUD Disponibili
+
+L'applicazione include un sistema completo di funzioni CRUD:
+
+- **CREATE**: `DiarioAlimentareDB.create_entry()`
+- **READ**: `DiarioAlimentareDB.get_all_entries()`, `get_entry_by_id()`, `get_entries_by_date_range()`
+- **UPDATE**: `DiarioAlimentareDB.update_entry()`
+- **DELETE**: `DiarioAlimentareDB.delete_entry()`
+- **SEARCH**: `DiarioAlimentareDB.search_entries()`
+- **STATS**: `DiarioAlimentareDB.get_statistics()`
+
+Vedi `src/database/README.md` per la documentazione completa delle funzioni.
 
 ## 🐛 Risoluzione Problemi
 
-- **Database non trovato**: Il database viene creato automaticamente al primo avvio
+- **Errore di connessione**: Verifica le credenziali Supabase in `.env`
+- **Tabella non trovata**: La tabella viene creata automaticamente al primo utilizzo
 - **Errori di dipendenze**: Assicurati di aver installato tutti i pacchetti in `requirements.txt`
 - **Porta occupata**: Se la porta 8501 è occupata, Streamlit ne sceglierà automaticamente un'altra
 
 ## 📝 Note
 
-- I dati vengono salvati localmente nel file `diarioalimentare.db`
+- I dati vengono salvati su Supabase (cloud database PostgreSQL)
 - L'applicazione è progettata per uso personale
-- Fai backup regolari del database per sicurezza
+- Le credenziali Supabase sono necessarie per il funzionamento
+- Tutti i dati sono crittografati in transito e a riposo
