@@ -71,16 +71,16 @@ if pagina == "📝 Aggiungi Record":
         data_input = st.date_input("Data", value=date.today())
         pasto = st.selectbox("Pasto", ["Colazione", "Spuntino Mattina", "Pranzo", "Merenda", "Cena", "Spuntino Sera"])
         alimento = st.text_input("Alimento")
-        quantita = st.number_input("Quantità", min_value=0.0, step=0.1)
+        quantita = st.number_input("Quantità", min_value=0, step=1)
         unita_misura = st.selectbox("Unità di Misura", ["g", "ml", "porzione", "cucchiaio", "cucchiaino", "tazza"])
-        carboidrati = st.number_input("Carboidrati (g)", min_value=0.0, step=0.1)
+        carboidrati = st.number_input("Carboidrati (g)", min_value=0.0, step=.5)
     
     with col2:
-        glicemia_iniziale = st.number_input("Glicemia Iniziale (mg/dl)", min_value=0.0, step=1.0)
-        glicemia_dopo_2h = st.number_input("Glicemia dopo 2h (mg/dl)", min_value=0.0, step=1.0, value=0.0)
-        unita_insulina = st.number_input("Unità Insulina", min_value=0.0, step=0.1, value=0.0)
-        insulina_attiva = st.number_input("Insulina Attiva", min_value=0.0, step=0.1, value=0.0)
-        dosi_correttive = st.number_input("Dosi Correttive", min_value=0.0, step=0.1, value=0.0)
+        glicemia_iniziale = st.number_input("Glicemia Iniziale (mg/dl)", min_value=0, step=1)
+        glicemia_dopo_2h = st.number_input("Glicemia dopo 2h (mg/dl)", min_value=0, step=1, value=0)
+        unita_insulina = st.number_input("Unità Insulina", min_value=0., step=0.5, value=0.)
+        insulina_attiva = st.number_input("Insulina Attiva", min_value=0., step=0.1, value=0.)
+        dosi_correttive = st.number_input("Dosi Correttive", min_value=0., step=0.5, value=0.)
         tempo_dose_correttiva = st.number_input("Tempo Dose Correttiva (minuti)", min_value=0, step=1, value=0, 
                                                help="Minuti trascorsi tra la dose principale e quella correttiva")
     

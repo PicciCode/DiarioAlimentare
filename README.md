@@ -31,12 +31,6 @@ pip install -r requirements.txt
 
 ## 🎯 Utilizzo
 
-### Avvio Rapido
-```bash
-python run_app.py
-```
-
-### Avvio Manuale
 ```bash
 cd src
 streamlit run main.py
