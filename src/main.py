@@ -19,11 +19,17 @@ st.markdown("---")
 
 # Sidebar per la navigazione
 st.sidebar.title("Navigazione")
-pagina = st.sidebar.selectbox(
-    "Seleziona una pagina:",
-    ["📝 Aggiungi Record", "📊 Visualizza Dati", "✏️ Modifica Record", "🗑️ Elimina Record", "📈 Analisi"]
-)
-
+toggle=st.sidebar.toggle("Visualizza Dati",key="visualizza_dati")
+if not toggle:
+    pagina = st.sidebar.selectbox(
+        "Seleziona una pagina:",
+        ["📝 Aggiungi Record", "📊 Visualizza Dati", "✏️ Modifica Record", "🗑️ Elimina Record", "📈 Analisi"]
+    )
+if toggle:
+    pagina = st.sidebar.selectbox(
+        "Seleziona una pagina:",
+        ["📊 Visualizza Dati", "📈 Analisi"]
+    )
 # Funzione per convertire DataFrame in Excel
 def converti_in_excel(df):
     output = io.BytesIO()
